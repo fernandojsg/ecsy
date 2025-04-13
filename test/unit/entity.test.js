@@ -1,6 +1,5 @@
-import "../helpers/common.js";
 import test from "ava";
-import { World } from "../../src/index.js";
+import { World, Component, Types } from "../../src/index.js";
 import { FooComponent, BarComponent } from "../helpers/components";
 
 /**
@@ -8,18 +7,10 @@ import { FooComponent, BarComponent } from "../helpers/components";
  * - IDs
  */
 
-test("reset", t => {
+test("adding/removing components sync", async (t) => {
   var world = new World();
 
-  var entity = world.createEntity();
-  var prevId = entity.id;
-  entity.reset();
-
-  t.not(entity.id, prevId);
-});
-
-test("adding/removing components sync", async t => {
-  var world = new World();
+  world.registerComponent(FooComponent).registerComponent(BarComponent);
 
   var entity = world.createEntity();
 
@@ -28,7 +19,10 @@ test("adding/removing components sync", async t => {
   t.is(entity.getComponentTypes().length, 1);
   t.true(entity.hasComponent(FooComponent));
   t.false(entity.hasComponent(BarComponent));
-  t.deepEqual(Object.keys(entity.getComponents()), ["FooComponent"]);
+  t.deepEqual(
+    Object.values(entity.getComponents()).map((comp) => comp.constructor),
+    [FooComponent]
+  );
 
   // Entity doesn't contain BarComponent
   t.false(entity.hasAllComponents([FooComponent, BarComponent]));
@@ -38,16 +32,20 @@ test("adding/removing components sync", async t => {
   t.true(entity.hasComponent(FooComponent));
   t.true(entity.hasComponent(BarComponent));
   t.true(entity.hasAllComponents([FooComponent, BarComponent]));
-  t.deepEqual(Object.keys(entity.getComponents()), [
-    "FooComponent",
-    "BarComponent"
-  ]);
+  t.deepEqual(
+    Object.values(entity.getComponents()).map((comp) => comp.constructor),
+    [FooComponent, BarComponent]
+  );
+
   entity.removeComponent(FooComponent, true);
   t.is(entity.getComponentTypes().length, 1);
   t.false(entity.hasComponent(FooComponent));
   t.true(entity.hasComponent(BarComponent));
   t.false(entity.hasAllComponents([FooComponent, BarComponent]));
-  t.deepEqual(Object.keys(entity.getComponents()), ["BarComponent"]);
+  t.deepEqual(
+    Object.values(entity.getComponents()).map((comp) => comp.constructor),
+    [BarComponent]
+  );
 
   entity.addComponent(FooComponent);
   entity.removeAllComponents(true);
@@ -55,18 +53,25 @@ test("adding/removing components sync", async t => {
   t.false(entity.hasComponent(FooComponent));
   t.false(entity.hasComponent(BarComponent));
   t.false(entity.hasAllComponents([FooComponent, BarComponent]));
-  t.deepEqual(Object.keys(entity.getComponents()), []);
+  t.deepEqual(
+    Object.values(entity.getComponents()).map((comp) => comp.constructor),
+    []
+  );
 });
 
-test("clearing pooled components", async t => {
+test("clearing pooled components", async (t) => {
   var world, entity;
 
   // Component with no constructor
 
-  class BazComponent {}
+  class BazComponent extends Component {}
+
+  BazComponent.schema = {
+    spam: { type: Types.String },
+  };
 
   world = new World();
-
+  world.registerComponent(BazComponent);
   entity = world.createEntity();
   entity.addComponent(BazComponent, { spam: "eggs" });
   t.is(
@@ -83,19 +88,22 @@ test("clearing pooled components", async t => {
 
   t.is(
     entity.getComponent(BazComponent).spam,
-    undefined,
+    "",
     "property should be cleared since it is not specified in addComponent args"
   );
 
   // Component with constructor that sets property
 
-  class PimComponent {
-    constructor() {
-      this.spam = "bacon";
+  class PimComponent extends Component {
+    constructor(props) {
+      super(props);
+      this.spam = props && props.spam !== undefined ? props.spam : "bacon";
     }
   }
 
   world = new World();
+
+  world.registerComponent(PimComponent, false);
 
   entity = world.createEntity();
   entity.addComponent(PimComponent, { spam: "eggs" });
@@ -119,6 +127,8 @@ test("clearing pooled components", async t => {
 
   world = new World();
 
+  world.registerComponent(PimComponent, false);
+
   entity = world.createEntity();
   entity.addComponent(PimComponent, { spam: "eggs" });
 
@@ -135,8 +145,10 @@ test("clearing pooled components", async t => {
   );
 });
 
-test("removing components deferred", async t => {
+test("removing components deferred", async (t) => {
   var world = new World();
+
+  world.registerComponent(FooComponent).registerComponent(BarComponent);
 
   var entity = world.createEntity();
 
@@ -149,16 +161,27 @@ test("removing components deferred", async t => {
   t.false(entity.hasComponent(FooComponent));
   t.false(entity.hasComponent(FooComponent));
   t.false(entity.hasComponent(BarComponent));
-  t.deepEqual(Object.keys(entity.getComponents()), []);
-  t.deepEqual(Object.keys(entity.getComponentsToRemove()), ["FooComponent"]);
+  t.deepEqual(
+    Object.values(entity.getComponents()).map((comp) => comp.constructor),
+    []
+  );
+  t.deepEqual(
+    Object.values(entity.getComponentsToRemove()).map(
+      (comp) => comp.constructor
+    ),
+    [FooComponent]
+  );
 
   world.entityManager.processDeferredRemoval();
   t.is(entity.getComponentTypes().length, 0);
   t.false(entity.hasComponent(FooComponent));
-  t.deepEqual(Object.keys(entity.getComponents()), []);
+  t.deepEqual(
+    Object.values(entity.getComponents()).map((comp) => comp.constructor),
+    []
+  );
 });
 
-test("remove entity", async t => {
+test("remove entity", async (t) => {
   var world = new World();
 
   // Sync
@@ -172,21 +195,125 @@ test("remove entity", async t => {
   t.is(world.entityManager.count(), 0);
 });
 
-test("get component includeRemoved", async t => {
+test("get component development", async (t) => {
   var world = new World();
+
+  world.registerComponent(FooComponent);
 
   // Sync
   var entity = world.createEntity();
   entity.addComponent(FooComponent);
   const component = entity.getComponent(FooComponent);
+
+  t.throws(() => (component.variableFoo = 4));
+
   entity.removeComponent(FooComponent);
 
   t.is(entity.hasComponent(FooComponent), false);
   t.is(entity.getComponent(FooComponent), undefined);
 
-  t.is(entity.hasRemovedComponent(FooComponent), true);
-  t.deepEqual(entity.getRemovedComponent(FooComponent), component);
+  const removedComponent = entity.getComponent(FooComponent, true);
 
-  t.is(entity.hasComponent(FooComponent, true), true);
-  t.deepEqual(entity.getComponent(FooComponent, true), component);
+  t.throws(() => (removedComponent.variableFoo = 14));
+});
+
+test("get component production", async (t) => {
+  const oldNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  var world = new World();
+
+  world.registerComponent(FooComponent);
+
+  // Sync
+  var entity = world.createEntity();
+  entity.addComponent(FooComponent);
+  const component = entity.getComponent(FooComponent);
+
+  t.notThrows(() => (component.variableFoo = 4));
+
+  entity.removeComponent(FooComponent);
+
+  t.is(entity.hasComponent(FooComponent), false);
+  t.is(entity.getComponent(FooComponent), undefined);
+
+  const removedComponent = entity.getComponent(FooComponent, true);
+
+  t.notThrows(() => (removedComponent.variableFoo = 14));
+
+  process.env.NODE_ENV = oldNodeEnv;
+});
+
+test("get removed component development", async (t) => {
+  var world = new World();
+
+  world.registerComponent(FooComponent);
+
+  // Sync
+  var entity = world.createEntity();
+  entity.addComponent(FooComponent);
+  entity.removeComponent(FooComponent);
+
+  const component = entity.getRemovedComponent(FooComponent);
+
+  t.throws(() => (component.variableFoo = 4));
+});
+
+test("get removed component production", async (t) => {
+  const oldNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  var world = new World();
+
+  world.registerComponent(FooComponent);
+
+  // Sync
+  var entity = world.createEntity();
+  entity.addComponent(FooComponent);
+  entity.removeComponent(FooComponent);
+
+  const component = entity.getRemovedComponent(FooComponent);
+
+  t.notThrows(() => (component.variableFoo = 4));
+
+  process.env.NODE_ENV = oldNodeEnv;
+});
+
+test("get mutable component", async (t) => {
+  var world = new World();
+
+  world.registerComponent(FooComponent);
+
+  // Sync
+  var entity = world.createEntity();
+  entity.addComponent(FooComponent);
+  const component = entity.getMutableComponent(FooComponent);
+
+  t.notThrows(() => (component.variableFoo = 4));
+
+  t.deepEqual(entity.getMutableComponent(BarComponent), undefined);
+});
+
+test("Delete entity from entitiesByNames", async (t) => {
+  var world = new World();
+
+  // Sync
+  let entityA = world.createEntity("entityA");
+  let entityB = world.createEntity("entityB");
+
+  t.deepEqual(
+    { entityA: entityA, entityB: entityB },
+    world.entityManager._entitiesByNames
+  );
+
+  // Immediate remove
+  entityA.remove(true);
+
+  t.deepEqual({ entityB: entityB }, world.entityManager._entitiesByNames);
+
+  // Deferred remove
+  entityB.remove();
+
+  t.deepEqual({ entityB: entityB }, world.entityManager._entitiesByNames);
+  world.execute(); // Deferred remove happens
+
+  t.deepEqual({}, world.entityManager._entitiesByNames);
 });

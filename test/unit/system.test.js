@@ -1,10 +1,9 @@
-import "../helpers/common.js";
 import test from "ava";
-import { World, System, Not } from "../../src/index.js";
+import { World, System, Not, Component } from "../../src/index.js";
 import {
   FooComponent,
   BarComponent,
-  EmptyComponent
+  EmptyComponent,
 } from "../helpers/components";
 /*
 test("Initialize", t => {
@@ -26,7 +25,7 @@ test("Initialize", t => {
 
   t.deepEqual(
     world.systemManager.getSystems().map(s => {
-      return s.constructor.name;
+      return s.getName();
     }),
     ["SystemA", "SystemB", "SystemC", "SystemD", "SystemE"]
   );
@@ -41,7 +40,7 @@ test("Initialize", t => {
 
   t.deepEqual(
     world.systemManager.getSystems().map(s => {
-      return s.constructor.name;
+      return s.getName();
     }),
     ["SystemC", "SystemA", "SystemD", "SystemE", "SystemB"]
   );
@@ -49,7 +48,7 @@ test("Initialize", t => {
 });
 */
 
-test("Empty queries", t => {
+test("Empty queries", (t) => {
   var world = new World();
 
   // System 1
@@ -64,14 +63,14 @@ test("Empty queries", t => {
   class SystemEmpty3 extends System {}
 
   SystemEmpty3.queries = {
-    entities: {}
+    entities: {},
   };
 
   // System 4
   class SystemEmpty4 extends System {}
 
   SystemEmpty4.queries = {
-    entities: { components: [] }
+    entities: { components: [] },
   };
 
   // Register empty system
@@ -82,19 +81,22 @@ test("Empty queries", t => {
 
   const error = t.throws(() => {
     world.registerSystem(SystemEmpty3);
-  }, Error);
+  });
 
   t.is(error.message, "'components' attribute can't be empty in a query");
   const error2 = t.throws(() => {
     world.registerSystem(SystemEmpty4);
-  }, Error);
+  });
   t.is(error2.message, "'components' attribute can't be empty in a query");
 });
 
-test("Queries", t => {
+test("Queries", (t) => {
   var world = new World();
 
-  world.registerComponent(FooComponent).registerComponent(BarComponent);
+  world
+    .registerComponent(FooComponent)
+    .registerComponent(BarComponent)
+    .registerComponent(EmptyComponent);
 
   for (var i = 0; i < 15; i++) {
     var entity = world.createEntity();
@@ -106,19 +108,19 @@ test("Queries", t => {
   class SystemFoo extends System {}
 
   SystemFoo.queries = {
-    entities: { components: [FooComponent] }
+    entities: { components: [FooComponent] },
   };
 
   class SystemBar extends System {}
 
   SystemBar.queries = {
-    entities: { components: [BarComponent] }
+    entities: { components: [BarComponent] },
   };
 
   class SystemBoth extends System {}
 
   SystemBoth.queries = {
-    entities: { components: [FooComponent, BarComponent] }
+    entities: { components: [FooComponent, BarComponent] },
   };
 
   world
@@ -143,10 +145,13 @@ test("Queries", t => {
   );
 });
 
-test("Queries with 'Not' operator", t => {
+test("Queries with 'Not' operator", (t) => {
   var world = new World();
 
-  world.registerComponent(FooComponent).registerComponent(BarComponent);
+  world
+    .registerComponent(FooComponent)
+    .registerComponent(BarComponent)
+    .registerComponent(EmptyComponent);
 
   // 10 Foo
   // 10 Bar
@@ -161,12 +166,12 @@ test("Queries with 'Not' operator", t => {
   class SystemNotNot extends System {}
 
   SystemNotNot.queries = {
-    notFoo: { components: [Not(FooComponent), Not(BarComponent)] }
+    notFoo: { components: [Not(FooComponent), Not(BarComponent)] },
   };
 
   const error = t.throws(() => {
     world.registerSystem(SystemNotNot);
-  }, Error);
+  });
 
   t.is(error.message, "Can't create a query without components");
 
@@ -176,8 +181,8 @@ test("Queries with 'Not' operator", t => {
     fooNotBar: { components: [FooComponent, Not(BarComponent)] },
     emptyNotBar: { components: [EmptyComponent, Not(BarComponent)] },
     emptyNotBarFoo: {
-      components: [EmptyComponent, Not(BarComponent), Not(FooComponent)]
-    }
+      components: [EmptyComponent, Not(BarComponent), Not(FooComponent)],
+    },
   };
 
   world.registerSystem(SystemNotBar);
@@ -198,7 +203,7 @@ test("Queries with 'Not' operator", t => {
   t.is(queries.emptyNotBar.results.length, 5);
 });
 
-test("Queries with sync removal", t => {
+test("Queries with sync removal", (t) => {
   var world = new World();
 
   world.registerComponent(FooComponent).registerComponent(BarComponent);
@@ -223,9 +228,9 @@ test("Queries with sync removal", t => {
     entities: {
       components: [FooComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   class SystemB extends System {
@@ -241,9 +246,9 @@ test("Queries with sync removal", t => {
     entities: {
       components: [FooComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   world.registerSystem(SystemA).registerSystem(SystemB);
@@ -269,7 +274,7 @@ test("Queries with sync removal", t => {
   t.is(entitiesB.length, 5);
   const error = t.throws(() => {
     systemB.execute();
-  }, Error);
+  });
 
   t.is(error.message, "Cannot read property 'remove' of undefined");
 
@@ -278,10 +283,13 @@ test("Queries with sync removal", t => {
   t.is(entitiesRemovedB.length, 8);
 });
 
-test("Queries with deferred removal", t => {
+test("Queries with deferred removal", (t) => {
   var world = new World();
 
-  world.registerComponent(FooComponent).registerComponent(BarComponent);
+  world
+    .registerComponent(FooComponent)
+    .registerComponent(BarComponent)
+    .registerComponent(EmptyComponent);
 
   for (var i = 0; i < 6; i++) {
     var entity = world.createEntity();
@@ -300,9 +308,9 @@ test("Queries with deferred removal", t => {
     entities: {
       components: [FooComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   class SystemFB extends System {
@@ -319,9 +327,9 @@ test("Queries with deferred removal", t => {
     entities: {
       components: [FooComponent, BarComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   class SystemB extends System {}
@@ -330,9 +338,9 @@ test("Queries with deferred removal", t => {
     entities: {
       components: [BarComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   world
@@ -391,7 +399,7 @@ test("Queries with deferred removal", t => {
   t.is(world.entityManager._entities.length, 2);
 });
 
-test("Queries removing multiple components", t => {
+test("Queries removing multiple components", (t) => {
   var world = new World();
 
   world
@@ -406,7 +414,7 @@ test("Queries removing multiple components", t => {
 
   class SystemA extends System {
     execute() {
-      this.queries.entities.removed.forEach(entity => {
+      this.queries.entities.removed.forEach((entity) => {
         t.false(entity.hasComponent(FooComponent));
         t.true(entity.hasRemovedComponent(FooComponent));
       });
@@ -420,12 +428,12 @@ test("Queries removing multiple components", t => {
     entities: {
       components: [FooComponent, BarComponent],
       listen: {
-        removed: true
-      }
+        removed: true,
+      },
     },
     notTest: {
-      components: [Not(FooComponent), BarComponent, EmptyComponent]
-    }
+      components: [Not(FooComponent), BarComponent, EmptyComponent],
+    },
   };
 
   world.registerSystem(SystemA);
@@ -477,7 +485,7 @@ test("Queries removing multiple components", t => {
   t.is(world.entityManager.entitiesToRemove.length, 0);
 });
 
-test("Querries removing deferred components", t => {
+test("Querries removing deferred components", (t) => {
   var world = new World();
 
   world.registerComponent(FooComponent).registerComponent(BarComponent);
@@ -498,9 +506,9 @@ test("Querries removing deferred components", t => {
     entities: {
       components: [FooComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   class SystemFB extends System {
@@ -517,9 +525,9 @@ test("Querries removing deferred components", t => {
     entities: {
       components: [FooComponent, BarComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   class SystemB extends System {}
@@ -528,9 +536,9 @@ test("Querries removing deferred components", t => {
     entities: {
       components: [BarComponent],
       listen: {
-        removed: true
-      }
-    }
+        removed: true,
+      },
+    },
   };
 
   world
@@ -591,7 +599,7 @@ test("Querries removing deferred components", t => {
   t.is(world.entityManager.entitiesWithComponentsToRemove.length, 0);
 });
 
-test("Reactive", t => {
+test("Reactive", (t) => {
   var world = new World();
 
   class ReactiveSystem extends System {
@@ -604,9 +612,9 @@ test("Reactive", t => {
       listen: {
         added: true,
         removed: true,
-        changed: [FooComponent, BarComponent]
-      }
-    }
+        changed: [FooComponent, BarComponent],
+      },
+    },
   };
 
   // Register empty system
@@ -615,10 +623,7 @@ test("Reactive", t => {
   world.registerComponent(FooComponent).registerComponent(BarComponent);
 
   for (var i = 0; i < 15; i++) {
-    world
-      .createEntity()
-      .addComponent(FooComponent)
-      .addComponent(BarComponent);
+    world.createEntity().addComponent(FooComponent).addComponent(BarComponent);
   }
 
   var system = world.systemManager.getSystems()[0];
@@ -635,10 +640,7 @@ test("Reactive", t => {
   system.clearEvents();
 
   // Add a new one
-  world
-    .createEntity()
-    .addComponent(FooComponent)
-    .addComponent(BarComponent);
+  world.createEntity().addComponent(FooComponent).addComponent(BarComponent);
 
   t.is(query.added.length, 1);
   world.execute(); // After execute, events should be cleared
@@ -706,11 +708,11 @@ test("Reactive", t => {
   t.is(query.removed.length, 0);
 });
 
-test("Queries with 'mandatory' parameter", t => {
+test("Queries with 'mandatory' parameter", (t) => {
   var counter = {
     a: 0,
     b: 0,
-    c: 0
+    c: 0,
   };
 
   class SystemA extends System {
@@ -720,7 +722,7 @@ test("Queries with 'mandatory' parameter", t => {
   }
 
   SystemA.queries = {
-    entities: { components: [FooComponent], mandatory: false }
+    entities: { components: [FooComponent], mandatory: false },
   };
 
   class SystemB extends System {
@@ -730,7 +732,7 @@ test("Queries with 'mandatory' parameter", t => {
   }
 
   SystemB.queries = {
-    entities: { components: [FooComponent], mandatory: true }
+    entities: { components: [FooComponent], mandatory: true },
   };
 
   class SystemC extends System {
@@ -740,11 +742,14 @@ test("Queries with 'mandatory' parameter", t => {
   }
 
   SystemC.queries = {
-    entities: { components: [BarComponent], mandatory: true }
+    entities: { components: [BarComponent], mandatory: true },
   };
 
   // -------
   var world = new World();
+
+  world.registerComponent(FooComponent).registerComponent(BarComponent);
+
   var entity = world.createEntity();
 
   world
@@ -771,7 +776,7 @@ test("Queries with 'mandatory' parameter", t => {
   t.deepEqual(counter, { a: 4, b: 2, c: 2 });
 });
 
-test("Get Systems", t => {
+test("Get Systems", (t) => {
   var world = new World();
 
   class SystemA extends System {}
@@ -789,7 +794,7 @@ test("Get Systems", t => {
   t.deepEqual(systems, world.systemManager._systems);
 });
 
-test("Systems without queries", t => {
+test("Systems without queries", (t) => {
   var world = new World();
 
   var counter = 0;
@@ -809,11 +814,13 @@ test("Systems without queries", t => {
   t.is(counter, 10);
 });
 
-test("Systems with component case sensitive", t => {
+test("Systems with component case sensitive", (t) => {
   var world = new World();
 
-  class A {}
-  class a {}
+  class A extends Component {}
+  class a extends Component {}
+
+  world.registerComponent(A).registerComponent(a);
 
   var counter = { a: 0, A: 0 };
 
@@ -838,6 +845,7 @@ test("Systems with component case sensitive", t => {
   world.execute();
   t.deepEqual(counter, { a: 0, A: 0 });
   let entity_A = world.createEntity();
+
   entity_A.addComponent(A);
   world.execute();
   t.deepEqual(counter, { a: 0, A: 1 });
@@ -852,14 +860,14 @@ test("Systems with component case sensitive", t => {
   t.deepEqual(counter, { a: 2, A: 2 });
 });
 
-test("Components with the the same name in uppercase and lowercase", t => {
-  class B {}
+test("Components with the the same name in uppercase and lowercase", (t) => {
+  class B extends Component {}
 
-  class b {}
+  class b extends Component {}
 
   class S extends System {
     execute() {
-      this.queries.S.results.forEach(entity =>
+      this.queries.S.results.forEach((entity) =>
         console.log(entity.getComponents())
       );
     }
@@ -867,18 +875,56 @@ test("Components with the the same name in uppercase and lowercase", t => {
   S.queries = { S: { components: [B, b] } };
 
   const world = new World();
+
+  world.registerComponent(B).registerComponent(b);
+
   world.registerSystem(S);
-  world
-    .createEntity()
-    .addComponent(B)
-    .addComponent(b);
+  world.createEntity().addComponent(B).addComponent(b);
 
   let query = world.getSystem(S).queries.S;
   let entity = query.results[0];
   let components = entity.getComponents();
-  t.deepEqual(Object.keys(components), ["B", "b"]);
+
   t.deepEqual(
-    Object.values(components).map(c => c.constructor.name),
+    Object.keys(components).map((c) => parseInt(c)),
+    [B._typeId, b._typeId]
+  );
+
+  t.deepEqual(
+    Object.values(components).map((c) => c.getName()),
     ["B", "b"]
   );
+});
+
+test("Unregister systems", (t) => {
+  class SystemA extends System {}
+
+  class SystemB extends System {
+    execute() {}
+  }
+
+  const world = new World();
+  world.registerSystem(SystemA).registerSystem(SystemB);
+
+  t.is(world.systemManager._systems.length, 2);
+  t.is(world.systemManager._executeSystems.length, 1);
+
+  world.unregisterSystem(SystemA);
+  t.is(world.systemManager._systems.length, 1);
+  t.is(world.systemManager._executeSystems.length, 1);
+
+  world.unregisterSystem(SystemB);
+  t.is(world.systemManager._systems.length, 0);
+  t.is(world.systemManager._executeSystems.length, 0);
+});
+
+test("Register a system that does not extend System", (t) => {
+  class SystemA {}
+
+  const world = new World();
+  const error = t.throws(() => {
+    world.registerSystem(SystemA);
+  });
+
+  t.is(error.message, "System 'SystemA' does not extend 'System' class");
 });

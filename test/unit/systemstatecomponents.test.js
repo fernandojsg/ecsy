@@ -1,21 +1,23 @@
 // @todo Define this globally for all the test?
-import "../helpers/common.js";
 import test from "ava";
 import { World, Not, System, SystemStateComponent } from "../../src/index.js";
 import { FooComponent } from "../helpers/components";
 
-test("reset", t => {
+test("reset", (t) => {
   var world = new World();
 
   class StateComponentA extends SystemStateComponent {}
 
+  world.registerComponent(StateComponentA);
+  world.registerComponent(FooComponent);
+
   class SystemA extends System {
     execute() {
-      this.queries.added.results.forEach(entity => {
+      this.queries.added.results.forEach((entity) => {
         entity.addComponent(StateComponentA);
       });
 
-      this.queries.remove.results.forEach(entity => {
+      this.queries.remove.results.forEach((entity) => {
         entity.removeComponent(StateComponentA);
       });
 
@@ -28,7 +30,7 @@ test("reset", t => {
   SystemA.queries = {
     added: { components: [FooComponent, Not(StateComponentA)] },
     remove: { components: [Not(FooComponent), StateComponentA] },
-    normal: { components: [FooComponent, StateComponentA] }
+    normal: { components: [FooComponent, StateComponentA] },
   };
 
   world.registerSystem(SystemA);
@@ -75,16 +77,16 @@ test("reset", t => {
   t.true(entity.hasComponent(StateComponentA));
 
   t.true(entity.alive);
-  t.is(entity._world, entityManager);
+  t.is(entity._entityManager, entityManager);
 
   entity.remove(true);
   t.false(entity.alive);
   t.false(entity.hasComponent(FooComponent));
   t.true(entity.hasComponent(StateComponentA));
-  t.is(entity._world, entityManager);
+  t.is(entity._entityManager, entityManager);
 
   entityManager.processDeferredRemoval();
-  t.is(entity._world, entityManager);
+  t.is(entity._entityManager, entityManager);
 
   t.is(entityManager._entities.length, 1);
   t.false(entity.hasComponent(FooComponent));

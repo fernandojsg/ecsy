@@ -1,17 +1,11 @@
 import Query from "./Query.js";
-import wrapImmutableComponent from "./WrapImmutableComponent.js";
 
-// @todo Take this out from there or use ENV
-const DEBUG = false;
-
-var nextId = 0;
-
-export default class Entity {
-  constructor(world) {
-    this._world = world || null;
+export class Entity {
+  constructor(entityManager) {
+    this._entityManager = entityManager || null;
 
     // Unique ID for this entity
-    this.id = nextId++;
+    this.id = entityManager._nextEntityId++;
 
     // List of components types the entity has
     this._ComponentTypes = [];
@@ -28,22 +22,27 @@ export default class Entity {
     this._ComponentTypesToRemove = [];
 
     this.alive = false;
+
+    //if there are state components on a entity, it can't be removed completely
+    this.numStateComponents = 0;
   }
 
   // COMPONENTS
 
   getComponent(Component, includeRemoved) {
-    var component = this._components[Component.name];
+    var component = this._components[Component._typeId];
 
     if (!component && includeRemoved === true) {
-      component = this._componentsToRemove[Component.name];
+      component = this._componentsToRemove[Component._typeId];
     }
 
-    return DEBUG ? wrapImmutableComponent(Component, component) : component;
+    return component;
   }
 
   getRemovedComponent(Component) {
-    return this._componentsToRemove[Component.name];
+    const component = this._componentsToRemove[Component._typeId];
+
+    return component;
   }
 
   getComponents() {
@@ -59,10 +58,16 @@ export default class Entity {
   }
 
   getMutableComponent(Component) {
-    var component = this._components[Component.name];
+    var component = this._components[Component._typeId];
+
+    if (!component) {
+      return;
+    }
+
     for (var i = 0; i < this.queries.length; i++) {
       var query = this.queries[i];
       // @todo accelerate this check. Maybe having query._Components as an object
+      // @todo add Not components
       if (query.reactive && query.Components.indexOf(Component) !== -1) {
         query.eventDispatcher.dispatchEvent(
           Query.prototype.COMPONENT_CHANGED,
@@ -75,12 +80,12 @@ export default class Entity {
   }
 
   addComponent(Component, values) {
-    this._world.entityAddComponent(this, Component, values);
+    this._entityManager.entityAddComponent(this, Component, values);
     return this;
   }
 
-  removeComponent(Component, forceRemove) {
-    this._world.entityRemoveComponent(this, Component, forceRemove);
+  removeComponent(Component, forceImmediate) {
+    this._entityManager.entityRemoveComponent(this, Component, forceImmediate);
     return this;
   }
 
@@ -109,22 +114,37 @@ export default class Entity {
     return false;
   }
 
-  removeAllComponents(forceRemove) {
-    return this._world.entityRemoveAllComponents(this, forceRemove);
+  removeAllComponents(forceImmediate) {
+    return this._entityManager.entityRemoveAllComponents(this, forceImmediate);
   }
 
-  // EXTRAS
+  copy(src) {
+    // TODO: This can definitely be optimized
+    for (var ecsyComponentId in src._components) {
+      var srcComponent = src._components[ecsyComponentId];
+      this.addComponent(srcComponent.constructor);
+      var component = this.getComponent(srcComponent.constructor);
+      component.copy(srcComponent);
+    }
 
-  // Initialize the entity. To be used when returning an entity to the pool
+    return this;
+  }
+
+  clone() {
+    return new Entity(this._entityManager).copy(this);
+  }
+
   reset() {
-    this.id = nextId++;
-    this._world = null;
+    this.id = this._entityManager._nextEntityId++;
     this._ComponentTypes.length = 0;
     this.queries.length = 0;
-    this._components = {};
+
+    for (var ecsyComponentId in this._components) {
+      delete this._components[ecsyComponentId];
+    }
   }
 
-  remove(forceRemove) {
-    return this._world.removeEntity(this, forceRemove);
+  remove(forceImmediate) {
+    return this._entityManager.removeEntity(this, forceImmediate);
   }
 }

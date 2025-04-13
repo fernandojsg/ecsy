@@ -1,50 +1,68 @@
-import ObjectPool from "./ObjectPool.js";
-import DummyObjectPool from "./DummyObjectPool.js";
-import { componentPropertyName } from "./Utils.js";
+import { ObjectPool } from "./ObjectPool.js";
 
 export class ComponentManager {
   constructor() {
-    this.Components = {};
+    this.Components = [];
+    this._ComponentsMap = {};
+
     this._componentPool = {};
     this.numComponents = {};
+    this.nextComponentId = 0;
   }
 
-  registerComponent(Component) {
-    if (this.Components[Component.name]) {
-      console.warn(`Component type: '${Component.name}' already registered.`);
+  hasComponent(Component) {
+    return this.Components.indexOf(Component) !== -1;
+  }
+
+  registerComponent(Component, objectPool) {
+    if (this.Components.indexOf(Component) !== -1) {
+      console.warn(
+        `Component type: '${Component.getName()}' already registered.`
+      );
       return;
     }
 
-    this.Components[Component.name] = Component;
-    this.numComponents[Component.name] = 0;
-  }
+    const schema = Component.schema;
 
-  componentAddedToEntity(Component) {
-    if (!this.Components[Component.name]) {
-      this.registerComponent(Component);
+    if (!schema) {
+      throw new Error(
+        `Component "${Component.getName()}" has no schema property.`
+      );
     }
 
-    this.numComponents[Component.name]++;
-  }
+    for (const propName in schema) {
+      const prop = schema[propName];
 
-  componentRemovedFromEntity(Component) {
-    this.numComponents[Component.name]--;
-  }
-
-  getComponentsPool(Component) {
-    var componentName = componentPropertyName(Component);
-
-    if (!this._componentPool[componentName]) {
-      if (Component.prototype.reset) {
-        this._componentPool[componentName] = new ObjectPool(Component);
-      } else {
-        console.warn(
-          `Component '${Component.name}' won't benefit from pooling because 'reset' method was not implemented.`
+      if (!prop.type) {
+        throw new Error(
+          `Invalid schema for component "${Component.getName()}". Missing type for "${propName}" property.`
         );
-        this._componentPool[componentName] = new DummyObjectPool(Component);
       }
     }
 
-    return this._componentPool[componentName];
+    Component._typeId = this.nextComponentId++;
+    this.Components.push(Component);
+    this._ComponentsMap[Component._typeId] = Component;
+    this.numComponents[Component._typeId] = 0;
+
+    if (objectPool === undefined) {
+      objectPool = new ObjectPool(Component);
+    } else if (objectPool === false) {
+      objectPool = undefined;
+    }
+
+    this._componentPool[Component._typeId] = objectPool;
+  }
+
+  componentAddedToEntity(Component) {
+    this.numComponents[Component._typeId]++;
+  }
+
+  componentRemovedFromEntity(Component) {
+    this.numComponents[Component._typeId]--;
+  }
+
+  getComponentsPool(Component) {
+    return this._componentPool[Component._typeId];
   }
 }
